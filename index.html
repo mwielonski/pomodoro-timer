@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,7 +34,7 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
-            background-image: 
+            background-image:
                 radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
                 radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.15) 0%, transparent 40%);
         }
@@ -48,7 +49,8 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             text-align: center;
             width: 90%;
-            max-width: 400px;
+            max-width: 480px;
+            /* Slightly wider for inputs */
             animation: fadeIn 0.8s ease-out;
         }
 
@@ -61,16 +63,58 @@
             margin-bottom: 2rem;
         }
 
-        .time-display {
+        .time-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .time-input {
+            width: 140px;
             font-size: 6rem;
             font-weight: 600;
             line-height: 1;
-            margin-bottom: 2.5rem;
+            background: transparent;
+            border: none;
+            color: inherit;
+            text-align: center;
             font-variant-numeric: tabular-nums;
             background: linear-gradient(to bottom, #fff, #cbd5e1);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            text-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 0;
+            margin: 0;
+        }
+
+        .time-input::placeholder {
+            -webkit-text-fill-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .time-input:focus {
+            outline: none;
+            text-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+        }
+
+        /* Hide spinner controls */
+        .time-input::-webkit-inner-spin-button,
+        .time-input::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .colon {
+            font-size: 5rem;
+            font-weight: 200;
+            margin-top: -1rem;
+            background: linear-gradient(to bottom, #fff, #cbd5e1);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: 0.7;
         }
 
         .controls {
@@ -118,28 +162,47 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        /* Pulse animation for the timer when active */
-        .timer-active {
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { text-shadow: 0 0 20px rgba(99, 102, 241, 0.2); }
-            50% { text-shadow: 0 0 30px rgba(168, 85, 247, 0.4); }
-            100% { text-shadow: 0 0 20px rgba(99, 102, 241, 0.2); }
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
+        /* Pulse animation for the timer when active */
+        .timer-active .time-input {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                text-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+            }
+
+            50% {
+                text-shadow: 0 0 30px rgba(168, 85, 247, 0.4);
+            }
+
+            100% {
+                text-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+            }
+        }
     </style>
 </head>
+
 <body>
 
     <div class="timer-card">
         <h1>Focus</h1>
-        <div class="time-display" id="timeDisplay">25:00</div>
+        <div class="time-container" id="timeContainer">
+            <input type="number" class="time-input" id="minutesInput" value="25" min="0" max="99">
+            <span class="colon">:</span>
+            <input type="number" class="time-input" id="secondsInput" value="00" min="0" max="59">
+        </div>
         <div class="controls">
             <button class="btn-primary" id="toggleBtn">Start</button>
             <button class="btn-secondary" id="resetBtn">Reset</button>
@@ -147,35 +210,78 @@
     </div>
 
     <script>
-        const INITIAL_MINUTES = 25;
-        let totalSeconds = INITIAL_MINUTES * 60;
+        let totalSeconds = 25 * 60;
         let intervalId = null;
         let isRunning = false;
-        
+
         // DOM Elements
-        const timeDisplay = document.getElementById('timeDisplay');
+        const minutesInput = document.getElementById('minutesInput');
+        const secondsInput = document.getElementById('secondsInput');
+        const timeContainer = document.getElementById('timeContainer');
         const toggleBtn = document.getElementById('toggleBtn');
         const resetBtn = document.getElementById('resetBtn');
+
+        let initialSecondsConfig = totalSeconds; // Store initial config to reset to
 
         // Note: AudioContext must be resumed on user interaction
         let audioCtx;
 
-        function formatTime(seconds) {
-            const mins = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        function pad(num) {
+            return num.toString().padStart(2, '0');
         }
 
-        function updateDisplay() {
-            timeDisplay.textContent = formatTime(totalSeconds);
-            document.title = `${formatTime(totalSeconds)} - Focus`;
+        function updateInputsFromSeconds(totalSecs) {
+            const mins = Math.floor(totalSecs / 60);
+            const secs = totalSecs % 60;
+            minutesInput.value = pad(mins);
+            secondsInput.value = pad(secs);
+            document.title = `${pad(mins)}:${pad(secs)} - Focus`;
         }
+
+        function getSecondsFromInputs() {
+            let mins = parseInt(minutesInput.value) || 0;
+            let secs = parseInt(secondsInput.value) || 0;
+
+            // Basic validation clamps
+            if (secs > 59) { secs = 59; secondsInput.value = 59; }
+            if (secs < 0) { secs = 0; secondsInput.value = "00"; }
+            if (mins < 0) { mins = 0; minutesInput.value = "00"; }
+
+            return (mins * 60) + secs;
+        }
+
+        // Input formatting on blur to ensure 2 digits
+        function formatInput(e) {
+            let val = parseInt(e.target.value);
+            if (isNaN(val) || val < 0) val = 0;
+            e.target.value = pad(val);
+        }
+
+        minutesInput.addEventListener('blur', formatInput);
+        secondsInput.addEventListener('blur', (e) => {
+            let val = parseInt(e.target.value);
+            if (val > 59) val = 59;
+            if (isNaN(val) || val < 0) val = 0;
+            e.target.value = pad(val);
+        });
+
+        // Update totalSeconds when user changes input while not running
+        function onInputChange() {
+            if (!isRunning) {
+                totalSeconds = getSecondsFromInputs();
+                initialSecondsConfig = totalSeconds;
+            }
+        }
+
+        minutesInput.addEventListener('change', onInputChange);
+        secondsInput.addEventListener('change', onInputChange);
+
 
         function playAlarm() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
-            
+
             const oscillator = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
 
@@ -191,7 +297,7 @@
 
             oscillator.start();
             oscillator.stop(audioCtx.currentTime + 0.5);
-            
+
             // Double beep
             setTimeout(() => {
                 const osc2 = audioCtx.createOscillator();
@@ -208,9 +314,14 @@
             }, 600);
         }
 
+        function setInputsDisabled(disabled) {
+            minutesInput.disabled = disabled;
+            secondsInput.disabled = disabled;
+        }
+
         function toggleTimer() {
             if (!audioCtx) {
-                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
@@ -221,27 +332,34 @@
                 clearInterval(intervalId);
                 isRunning = false;
                 toggleBtn.textContent = 'Start';
-                timeDisplay.classList.remove('timer-active');
+                timeContainer.classList.remove('timer-active');
+                setInputsDisabled(false);
             } else {
                 // Start
+                // Ensure we capture latest input if they didn't blur/change properly?
+                totalSeconds = getSecondsFromInputs();
+                if (totalSeconds <= 0) return; // Don't start if 0
+
                 isRunning = true;
                 toggleBtn.textContent = 'Pause';
-                timeDisplay.classList.add('timer-active');
-                
+                timeContainer.classList.add('timer-active');
+                setInputsDisabled(true);
+
                 intervalId = setInterval(() => {
                     if (totalSeconds > 0) {
                         totalSeconds--;
-                        updateDisplay();
+                        updateInputsFromSeconds(totalSeconds);
                     } else {
                         // Timer Finished
                         clearInterval(intervalId);
                         isRunning = false;
                         toggleBtn.textContent = 'Start';
-                        timeDisplay.classList.remove('timer-active');
+                        timeContainer.classList.remove('timer-active');
+                        setInputsDisabled(false);
                         playAlarm();
-                        totalSeconds = INITIAL_MINUTES * 60; // Auto reset for now? Or stay at 00:00? 
-                        // Let's stay at 00:00 visually but next click resets logic if needed. 
-                        // Actually, standard behavior is stop at 0.
+                        // Reset to what the user had set?
+                        // For now, let's leave it at 00:00 or reset. 
+                        // Better UX might be to just leave it at 0.
                     }
                 }, 1000);
             }
@@ -250,19 +368,18 @@
         function resetTimer() {
             clearInterval(intervalId);
             isRunning = false;
-            totalSeconds = INITIAL_MINUTES * 60;
+            // Restore the configured start time
+            totalSeconds = initialSecondsConfig;
+            updateInputsFromSeconds(totalSeconds);
             toggleBtn.textContent = 'Start';
-            timeDisplay.classList.remove('timer-active');
-            updateDisplay();
-            document.title = 'Focus Timer';
+            timeContainer.classList.remove('timer-active');
+            setInputsDisabled(false);
         }
 
         toggleBtn.addEventListener('click', toggleTimer);
         resetBtn.addEventListener('click', resetTimer);
 
-        // Initial render
-        updateDisplay();
-
     </script>
 </body>
+
 </html>
